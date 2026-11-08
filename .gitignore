@@ -1,0 +1,9 @@
+dist/
+.udyam/
+.env
+.env.*
+!.env.example
+node_modules/
+src/official.local.mjs
+public/specimens/
+public/vendor/
