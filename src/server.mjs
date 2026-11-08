@@ -1,7 +1,12 @@
 import {
-  clock, catalogueVersion, policyVersion, catalogue, pins, slots, types, tools, scenarios,
-  DomainError, deriveQuote, priority, specimens, publicSpecimen, evaluateEvidence
+  clock, policyVersion, slots, scenarios, DomainError, priority, specimens, publicSpecimen,
+  evaluateEvidence, checkRegistration, readEvidenceGstin
 } from './domain.mjs';
+import { catalogue, catalogueVersion, types, tools, deriveQuote, skuEligible } from './catalogue.mjs';
+import { canonicalCity, coverage, pins } from './geography.mjs';
+import { questionOrder, nextQuestion } from './intake.mjs';
+import { modelProvider, understandProfile, explainWithModel } from './models.mjs';
+import { handleWhatsApp, waReply } from './whatsapp.mjs';
 
 const DAY = 86400000;
 const MINUTE = 60000;
@@ -9,7 +14,6 @@ const authLifetime = DAY;
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const refPattern = /^UD-[A-F0-9]{10}$/;
 const partnerCodes = new Set(['JPR-07', 'JPR-12', 'DEL-03']);
-const questionOrder = ['type', 'location', 'staff', 'tools', 'budget'];
 const writer = new TextEncoder();
 
 const hex = (bytes) => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
@@ -26,14 +30,14 @@ function initialCase(body) {
   const picked = typeof body.scenario === 'string' && Object.hasOwn(scenarios, body.scenario) ? scenarios[body.scenario] : null;
   const fixture = typeof body.fixture === 'string' && /^K(?:0[1-9]|1[012])$/.test(body.fixture) && Object.hasOwn(specimens, body.fixture) ? body.fixture : null;
   const profile = picked
-    ? { type: picked.type, sites: picked.sites, pin: picked.pin, staff: picked.staff, tools: picked.tools, budget: picked.budget }
+    ? { type: picked.type, sites: picked.sites, pin: picked.pin, staff: picked.staff, tools: picked.tools, budget: picked.budget, gstStatus: 'none', gstVerified: false }
     : {};
   const partner = partnerCodes.has(body.partner) ? body.partner : picked?.partner || null;
   const state = {
     id: 'UD-' + random(5).toUpperCase(), phase: picked ? 'quote' : 'advisor', profile,
     channel: body.channel === 'web' ? 'web' : 'whatsapp', partner,
     fixture: fixture || picked?.fixture || null, language: body.language === 'hi' ? 'hi' : 'en',
-    scenario: picked ? body.scenario : 'custom', asked: picked ? 5 : 0,
+    scenario: picked ? body.scenario : 'custom', asked: picked ? questionOrder.length : 0,
     quote: picked ? deriveQuote(profile) : null, quoteRevision: picked ? 1 : 0,
     consent: null, kyc: null, hold: null, order: null, assist: null, events: []
   };
@@ -43,58 +47,107 @@ function initialCase(body) {
   return state;
 }
 
-function acceptAnswer(state, key, value) {
-  need(state.phase === 'advisor' && questionOrder[state.asked] === key, 'WRONG_STEP', 409);
+function finishIntake(state) {
+  const next = nextQuestion(state.profile);
+  state.asked = next ? questionOrder.indexOf(next) : questionOrder.length;
+  if (next) return;
+  state.quote = deriveQuote(state.profile);
+  state.quoteRevision += 1;
+  state.phase = 'quote';
+  state.previousProfile = null;
+  addEvent(state, 'QUOTE_READY', 'Catalogue rules', { monthly: state.quote.monthly });
+}
+
+async function recordGst(state, value) {
+  need(typeof value === 'string' && value.length <= 30, 'INVALID_GST');
+  delete state.profile.gstReference;
+  Object.assign(state.profile, checkRegistration(value));
+  state.registrationHash = state.profile.gstVerified ? await hash(value.trim().toUpperCase()) : null;
+}
+
+async function acceptAnswer(state, key, value) {
+  need(state.phase === 'advisor' && nextQuestion(state.profile) === key, 'WRONG_STEP', 409);
   const p = state.profile;
   switch (key) {
     case 'type':
       need(types.includes(value), 'INVALID_TYPE');
       p.type = value;
       break;
-    case 'location':
-      need(typeof value?.pin === 'string' && /^[1-9]\d{5}$/.test(value.pin) &&
-        Number.isInteger(value.sites) && value.sites >= 1 && value.sites <= 100, 'INVALID_LOCATION');
-      p.pin = value.pin;
-      p.sites = value.sites;
+    case 'location': {
+      const pin = typeof value?.pin === 'string' ? value.pin : '';
+      const city = canonicalCity(value?.city);
+      need((pin ? /^[1-9]\d{5}$/.test(pin) : city) &&
+        Number.isInteger(value?.sites) && value.sites >= 1 && value.sites <= 100, 'INVALID_LOCATION');
+      Object.assign(p, { pin, city, sites: value.sites });
       break;
+    }
     case 'staff':
       need(Number.isInteger(value) && value > 0 && value <= 500, 'INVALID_SIZE');
       p.staff = value;
       break;
     case 'tools':
-      need(Array.isArray(value) && value.length > 0 && value.length <= tools.length &&
-        value.every(tool => tools.includes(tool)) && (value.length === 1 || !value.includes('none')), 'INVALID_TOOLS');
-      p.tools = [...new Set(value)];
+      need(Array.isArray(value) && value.length <= tools.length &&
+        value.every(tool => tools.includes(tool)) && (value.length <= 1 || !value.includes('none')), 'INVALID_TOOLS');
+      p.tools = [...new Set(value.filter(tool => tool !== 'none'))];
       break;
     case 'budget':
       need(Number.isInteger(value) && value >= 300 && value <= 500000, 'INVALID_BUDGET');
       p.budget = value;
       break;
+    case 'gst':
+      await recordGst(state, value);
+      break;
   }
-  state.asked += 1;
-  if (state.asked === 5) {
-    state.quote = deriveQuote(p);
-    state.quoteRevision += 1;
-    state.phase = 'quote';
-    state.fixture ??= p.type === 'retail' ? 'D02' : 'D01';
-    addEvent(state, 'QUOTE_READY', 'Catalogue rules', { monthly: state.quote.monthly });
-  }
+  finishIntake(state);
 }
 
-function currentQuote(state, revision) {
-  need(state.quoteRevision === revision, 'QUOTE_CHANGED', 409);
-  const q = deriveQuote(state.profile, state.quote?.options);
-  need(q.route === 'self' && q.version === state.quote.version && q.monthly === state.quote.monthly &&
-    q.setup === state.quote.setup && JSON.stringify(q.lines) === JSON.stringify(state.quote.lines), 'QUOTE_CHANGED', 409);
+async function addIntakeText(state, input, env) {
+  need(state.phase === 'advisor' && typeof input === 'string' && input.trim() && input.length <= 1200, 'INVALID_MESSAGE');
+  const { facts, mode } = await understandProfile(input, nextQuestion(state.profile), env);
+  const { gstin, tools: selected, ...profile } = facts;
+  need(Object.keys(facts).length > 0, 'INTAKE_NOT_UNDERSTOOD');
+  Object.assign(state.profile, profile);
+  if (selected) state.profile.tools = selected.length ? [...new Set([...(state.profile.tools || []), ...selected])] : [];
+  if (gstin !== undefined) await recordGst(state, gstin);
+  state.intakeMode = mode;
+  finishIntake(state);
+}
+
+function currentQuote(state, revision, purchasable = true) {
+  need(state.quoteRevision === revision && state.quote, 'QUOTE_CHANGED', 409);
+  const original = state.quote;
+  if (original.version === 'A26.07' && ['kyc', 'checkout'].includes(state.phase)) {
+    const area = coverage(state.profile.pin, state.profile.city);
+    const context = { ...state.profile, tier: area.tier, chosen: original.lines.map(row => row.id) };
+    need(original.route === 'self' && original.lines.every(row => {
+      const item = catalogue[row.id];
+      return item && skuEligible(row.id, context) && row.price === item.price && row.setup === item.setup &&
+        row.monthly === row.qty * item.price && row.oneTime === row.qty * item.setup;
+    }), 'QUOTE_CHANGED', 409);
+    return original;
+  }
+  const q = deriveQuote(state.profile, original.options);
+  need((!purchasable || q.route === 'self') && q.version === original.version && q.monthly === original.monthly &&
+    q.setup === original.setup && JSON.stringify(q.lines) === JSON.stringify(original.lines), 'QUOTE_CHANGED', 409);
   return q;
 }
 
+function evidencePolicy(state) {
+  const fixture = state.fixture && publicSpecimen(state.fixture)?.required;
+  return { id: true, address: true, gst: Boolean(fixture?.gst || state.profile.gstVerified || state.quote?.gstRequired),
+    udyam: Boolean(fixture?.udyam) };
+}
+
 function present(state) {
+  const { registrationHash, lastInbound, ...safe } = state;
+  const p = state.profile;
+  const draftQuote = state.phase === 'advisor' && p.type && p.sites && p.staff && (p.pin || p.city)
+    ? deriveQuote({ ...p, budget: p.budget ?? 500000 }) : null;
   return {
-    ...state,
+    ...safe, draftQuote, nextQuestion: state.phase === 'advisor' ? nextQuestion(p) : null,
     priority: priority(state),
     hold: state.hold && { ...state.hold, expired: state.hold.expires <= Date.now() },
-    evidencePolicy: state.fixture ? publicSpecimen(state.fixture).required : null
+    evidencePolicy: evidencePolicy(state)
   };
 }
 
@@ -103,29 +156,35 @@ function routeAssist(state, type) {
   addEvent(state, 'ASSISTANCE_QUEUED', 'Journey', { route: type });
 }
 
-function apply(state, input) {
+async function apply(state, input, env) {
   switch (input.action) {
     case 'language':
       need(['en', 'hi'].includes(input.language), 'INVALID_LANGUAGE');
       state.language = input.language;
       break;
     case 'answer':
-      acceptAnswer(state, input.key, input.value);
+      await acceptAnswer(state, input.key, input.value);
+      break;
+    case 'intake':
+      await addIntakeText(state, input.text, env);
       break;
     case 'edit':
       need(state.phase === 'quote' && !state.consent, 'WRONG_STEP', 409);
       state.phase = 'advisor';
       state.asked = 0;
+      state.previousProfile = state.profile;
+      state.profile = {};
+      state.registrationHash = null;
       state.quote = null;
       if (state.scenario === 'custom') state.fixture = null;
       break;
     case 'toggle': {
       need(state.phase === 'quote', 'WRONG_STEP', 409);
-      const old = currentQuote(state, input.revision);
-      const key = input.key;
-      need((key === 'backup' && old.canBackup || key === 'pos' && old.canPos) &&
-        typeof input.enabled === 'boolean', 'SKU_INELIGIBLE');
-      if (old.options[key] === input.enabled) break;
+      const old = currentQuote(state, input.revision, false);
+      const key = input.key === 'backup' ? 'P09' : input.key === 'pos' ? 'P19' : input.key;
+      const item = old.toggles.find(row => row.id === key);
+      need(item && typeof input.enabled === 'boolean', 'SKU_INELIGIBLE');
+      if (item.selected === input.enabled) break;
       state.quote = deriveQuote(state.profile, { ...old.options, [key]: input.enabled });
       state.quoteRevision += 1;
       addEvent(state, 'QUOTE_REPRICED', 'Catalogue rules', {
@@ -158,7 +217,12 @@ function apply(state, input) {
     case 'verify': {
       need(state.phase === 'kyc' && state.consent, 'CONSENT_REQUIRED', 409);
       need(state.kyc?.status !== 'review', 'REVIEW_IN_PROGRESS', 409);
-      const result = evaluateEvidence(state.fixture, input.documents);
+      const result = evaluateEvidence(evidencePolicy(state), input.documents);
+      if (result.status === 'cleared' && (state.profile.gstVerified || state.quote?.gstRequired) &&
+        (!state.registrationHash || await hash(readEvidenceGstin(input.documents)) !== state.registrationHash)) {
+        result.status = 'correction';
+        result.checks.push({ name: 'gst', state: 'correction', reason: 'GST_QUOTE_MISMATCH' });
+      }
       state.kyc = { ...result, at: date() };
       if (result.status === 'cleared') {
         if (state.assist?.type === 'kyc') state.assist = null;
@@ -187,7 +251,7 @@ function apply(state, input) {
     case 'assist': {
       need(state.phase !== 'closed', 'WRONG_STEP', 409);
       if (state.assist) break;
-      const route = ['complex', 'survey'].includes(state.quote?.route) ? state.quote.route : 'callback';
+      const route = ['complex', 'survey', 'budget'].includes(state.quote?.route) ? state.quote.route : 'callback';
       routeAssist(state, route);
       if (state.phase === 'quote' && route !== 'callback') state.phase = 'assisted';
       break;
@@ -251,15 +315,59 @@ async function create(db, body) {
   return { state: present(state), token };
 }
 
-async function issueCode(db, row, state) {
+async function issueCode(db, row, state, actor = 'WhatsApp simulator') {
   need(!['closed'].includes(state.phase), 'WRONG_STEP', 409);
   const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), byte => alphabet[byte % alphabet.length]).join('');
   const expires = Date.now() + 10 * MINUTE;
-  addEvent(state, 'RESUME_ISSUED', 'WhatsApp simulator');
+  addEvent(state, 'RESUME_ISSUED', actor);
   const result = await db.prepare('UPDATE cases SET state = ?, resume_hash = ?, resume_expires = ?, resume_tries = 0, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?')
     .bind(JSON.stringify(state), await hash(row.id + code), expires, Date.now(), row.id, row.revision).run();
   need(result.meta.changes === 1, 'CASE_UPDATED', 409);
   return { state: present(state), code, expires };
+}
+
+async function receiveWhatsApp(env, event, deliver) {
+  const db = env.DB;
+  const now = Date.now();
+  const { sender, message, appUrl } = event;
+  const lease = random(12);
+  await db.prepare('DELETE FROM whatsapp_deliveries WHERE delivered_at <= ?').bind(now - 7 * DAY).run();
+  if (await db.prepare('SELECT message_hash FROM whatsapp_deliveries WHERE message_hash = ?').bind(message).first()) return;
+  await db.prepare('DELETE FROM whatsapp_senders WHERE updated_at <= ? AND lease_until <= ?').bind(now - DAY, now).run();
+  await db.prepare('INSERT OR IGNORE INTO whatsapp_senders (sender_hash, updated_at) VALUES (?, ?)').bind(sender, now).run();
+  const lock = await db.prepare('UPDATE whatsapp_senders SET lease = ?, lease_until = ? WHERE sender_hash = ? AND lease_until <= ?')
+    .bind(lease, now + MINUTE, sender, now).run();
+  need(Number(lock.meta.changes) === 1, 'CASE_UPDATED', 409);
+  try {
+    if (await db.prepare('SELECT message_hash FROM whatsapp_deliveries WHERE message_hash = ?').bind(message).first()) return;
+    const current = await db.prepare('SELECT case_id FROM whatsapp_senders WHERE sender_hash = ?').bind(sender).first();
+    let row = current?.case_id && await db.prepare('SELECT * FROM cases WHERE id = ?').bind(current.case_id).first();
+    let state = row && row.updated_at > now - authLifetime ? JSON.parse(row.state) : null;
+    if (!state || state.phase === 'closed') {
+      const started = await create(db, { channel: 'whatsapp', language: /\p{Script=Devanagari}/u.test(event.text) ? 'hi' : 'en' });
+      row = await rowById(db, started.state.id);
+      state = JSON.parse(row.state);
+      await db.prepare('UPDATE whatsapp_senders SET case_id = ? WHERE sender_hash = ? AND lease = ?').bind(row.id, sender, lease).run();
+    }
+    if (state.phase === 'advisor' && !state.lastInbound?.includes(message)) {
+      if (/\p{Script=Devanagari}/u.test(event.text)) state.language = 'hi';
+      try { await addIntakeText(state, event.text, env); }
+      catch (error) {
+        if (!(error instanceof DomainError) || !['INVALID_MESSAGE', 'INTAKE_NOT_UNDERSTOOD'].includes(error.code)) throw error;
+      }
+      state.lastInbound = [...(state.lastInbound || []), message].slice(-32);
+      need(await save(db, row, state), 'CASE_UPDATED', 409);
+      row = await rowById(db, row.id);
+    }
+    const next = state.phase === 'advisor' ? nextQuestion(state.profile) : null;
+    const handoff = next ? null : await issueCode(db, row, state, 'WhatsApp Cloud API');
+    await deliver(waReply(state, next, appUrl, handoff?.code));
+    await db.prepare('INSERT OR IGNORE INTO whatsapp_deliveries (message_hash, delivered_at) VALUES (?, ?)')
+      .bind(message, Date.now()).run();
+  } finally {
+    await db.prepare('UPDATE whatsapp_senders SET lease = NULL, lease_until = 0, updated_at = ? WHERE sender_hash = ? AND lease = ?')
+      .bind(Date.now(), sender, lease).run();
+  }
 }
 
 async function redeem(db, body) {
@@ -307,34 +415,6 @@ async function pay(db, request, id, input) {
   throw new DomainError('CASE_UPDATED', 409);
 }
 
-async function generateExplanation(state, env) {
-  if (!env.OPENAI_API_KEY || state.quote?.route !== 'self') return { mode: 'rules' };
-  const input = {
-    language: state.language === 'hi' ? 'Hindi' : 'English',
-    business: state.profile.type, staff: state.profile.staff, tools: state.profile.tools,
-    items: state.quote.lines.map(row => ({ name: row.name, use: row.detail })),
-    coverage: state.quote.area.code
-  };
-  try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST', headers: { 'Authorization': 'Bearer ' + env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: env.OPENAI_MODEL || 'gpt-4.1-mini', store: false, max_output_tokens: 180,
-        instructions: 'Write two short customer-facing sentences in the given language about how the listed services help the business. Use only the listed items. Include no prices, numbers, promises, or links. Return plain text.',
-        input: JSON.stringify(input)
-      }),
-      signal: AbortSignal.timeout(6500)
-    });
-    if (!response.ok) return { mode: 'rules' };
-    const payload = await response.json();
-    const text = payload.output?.flatMap(block => block.content || []).find(part => part.type === 'output_text')?.text?.trim();
-    if (text && text.length <= 560 && !/[\d₹$<>]|https?:/i.test(text)) return { mode: 'genai', text };
-  } catch {
-    return { mode: 'rules' };
-  }
-  return { mode: 'rules' };
-}
-
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
 });
@@ -353,11 +433,12 @@ async function readBody(request) {
 
 async function handleApi(request, url, env) {
   const path = url.pathname;
+  if (path === '/api/whatsapp/webhook') return handleWhatsApp(request, env, (event, deliver) => receiveWhatsApp(env, event, deliver));
   if (request.method === 'GET' && path === '/api/config') {
     return json({ clock, catalogueVersion, policyVersion, pins, slots,
-      addOns: { backup: catalogue.P09, pos: catalogue.P19 },
+      questions: questionOrder,
       fixtures: Object.entries(specimens).filter(([key]) => /^K\d\d$/.test(key)).map(([id, { description }]) => ({ id, description })),
-      hostedAi: Boolean(env.OPENAI_API_KEY) });
+      hostedAi: Boolean(modelProvider(env)) });
   }
 
   const db = env.DB;
@@ -372,12 +453,20 @@ async function handleApi(request, url, env) {
   need(match, 'NOT_FOUND', 404);
   const [, id, sub] = match;
   if (request.method === 'GET') {
-    const state = JSON.parse((await authorize(db, request, id)).state);
+    const row = await authorize(db, request, id);
+    const state = JSON.parse(row.state);
+    if (state.phase === 'quote' && state.quote?.version === 'A26.07') {
+      state.profile.gstStatus ??= 'none';
+      state.quote = deriveQuote(state.profile, state.quote.options);
+      state.quoteRevision += 1;
+      need(await save(db, row, state), 'CASE_UPDATED', 409);
+    }
     if (sub === 'specimen') {
       need(state.consent && state.phase === 'kyc', 'CONSENT_REQUIRED', 403);
-      return json(publicSpecimen(state.fixture));
+      const sample = publicSpecimen(state.fixture || (evidencePolicy(state).gst ? 'D01' : 'D02'));
+      return json({ ...sample, required: evidencePolicy(state) });
     }
-    if (sub === 'explain') return json(await generateExplanation(state, env));
+    if (sub === 'explain') return json(await explainWithModel(state, env));
     return json({ state: present(state) });
   }
   need(request.method === 'POST' && !sub, 'NOT_FOUND', 404);
@@ -386,15 +475,22 @@ async function handleApi(request, url, env) {
   const row = await authorize(db, request, id);
   const state = JSON.parse(row.state);
   if (input.action === 'issueCode') return json(await issueCode(db, row, state));
-  apply(state, input);
+  await apply(state, input, env);
   need(await save(db, row, state), 'CASE_UPDATED', 409);
   return json({ state: present(state) });
 }
 
 export async function route(request, env, asset) {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith('/api/')) return asset(url.pathname, request.method);
   try {
+    if (url.pathname.startsWith('/specimens/')) {
+      const id = request.headers.get('X-Case-Ref');
+      need(env.DB && id && refPattern.test(id), 'AUTH_REQUIRED', 401);
+      const state = JSON.parse((await authorize(env.DB, request, id)).state);
+      const files = publicSpecimen(state.fixture)?.files || {};
+      need(state.consent && state.phase === 'kyc' && Object.values(files).includes(url.pathname), 'PROOF_UNAVAILABLE', 403);
+    }
+    if (!url.pathname.startsWith('/api/')) return asset(url.pathname, request.method);
     return await handleApi(request, url, env);
   } catch (error) {
     if (error instanceof DomainError) return json({ error: error.code }, error.status);

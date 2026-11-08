@@ -54,23 +54,39 @@ const b = (label, act, options = {}) => '<button type="button" class="button ' +
   escape(label) + (options.icon ? icon(options.icon) : '') + '</button>';
 
 const typeNames = {
-  office: ['Clinic / professional office', 'क्लिनिक / पेशेवर ऑफिस'],
-  retail: ['Shop / local service', 'दुकान / स्थानीय सेवा'],
+  clinic: ['Clinic / diagnostic centre', 'क्लिनिक / जाँच केंद्र'],
+  office: ['CA / professional office', 'सीए / पेशेवर कार्यालय'],
+  retail: ['Retail shop', 'रिटेल दुकान'],
+  restaurant: ['Restaurant / cafe', 'रेस्टोरेंट / कैफ़े'],
+  warehouse: ['Warehouse', 'गोदाम'],
+  factory: ['Manufacturer', 'निर्माता'],
   multisite: ['Multi-site business', 'कई स्थानों वाला कारोबार'],
-  factory: ['Small manufacturer', 'छोटी निर्माण इकाई']
+  salon: ['Salon', 'सैलून'], pharmacy: ['Pharmacy', 'फ़ार्मेसी'],
+  coaching: ['Coaching centre', 'कोचिंग केंद्र'], hotel: ['Hotel', 'होटल'], logistics: ['Logistics', 'लॉजिस्टिक्स']
 };
 const toolNames = {
   hotspot: ['Phone hotspot', 'फ़ोन हॉटस्पॉट'], broadband: ['Broadband', 'ब्रॉडबैंड'],
-  pos: ['POS or billing', 'POS या बिलिंग'], email: ['Email or cloud tools', 'ईमेल या क्लाउड'],
-  outages: ['Internet drops often', 'इंटरनेट अक्सर बंद होता है'], none: ['None yet', 'अभी कोई नहीं']
+  pos: ['POS / billing', 'POS / बिलिंग'], email: ['Business email', 'बिज़नेस ईमेल'],
+  outages: ['Outage backup', 'इंटरनेट बैकअप'], cctv: ['CCTV', 'सीसीटीवी'],
+  'guest-wifi': ['Guest Wi-Fi', 'गेस्ट वाई-फ़ाई'], 'static-ip': ['Static IP', 'स्टैटिक IP'],
+  firewall: ['Managed firewall', 'फ़ायरवॉल'], sdwan: ['SD-WAN', 'SD-WAN'],
+  calls: ['Calls / IVR', 'कॉल / IVR'], whatsapp: ['WhatsApp Business', 'WhatsApp बिज़नेस'],
+  sms: ['SMS alerts', 'SMS अलर्ट'], 'toll-free': ['Toll-free', 'टोल-फ़्री'],
+  iot: ['Machine monitoring', 'मशीन मॉनिटरिंग'], fleet: ['Fleet tracking', 'वाहन ट्रैकिंग'],
+  website: ['Website / domain', 'वेबसाइट / डोमेन'], 'cloud-backup': ['Cloud backup', 'क्लाउड बैकअप'],
+  security: ['Device security', 'डिवाइस सुरक्षा'], 'business-sim': ['Business SIM', 'बिज़नेस SIM'],
+  'mobile-plus': ['Premium SIM / roaming', 'प्रीमियम SIM / रोमिंग'],
+  'leased-line': ['Leased line', 'लीज़्ड लाइन'], gigabit: ['Gigabit fibre', 'गीगाबिट फ़ाइबर'],
+  none: ['No extras', 'अतिरिक्त सेवा नहीं']
 };
-const questions = [
-  ['What kind of business do you run?', 'आपका कारोबार किस तरह का है?'],
-  ['How many sites do you need connected, and what is the installation PIN code?', 'कितने स्थानों पर कनेक्शन चाहिए और इंस्टॉलेशन का PIN क्या है?'],
-  ['How many people will use the connection or business tools?', 'कितने लोग कनेक्शन या बिज़नेस टूल इस्तेमाल करेंगे?'],
-  ['What do you use today? Select anything that applies.', 'आप अभी क्या इस्तेमाल करते हैं? सभी लागू विकल्प चुनें।'],
-  ['What is your monthly budget before tax?', 'टैक्स से पहले आपका मासिक बजट कितना है?']
-];
+const questions = {
+  type: ['What kind of business do you run?', 'आपका कारोबार किस तरह का है?'],
+  location: ['How many sites do you need connected? Enter a PIN or a city.', 'कितने स्थानों पर कनेक्शन चाहिए? PIN या शहर दर्ज करें।'],
+  staff: ['How many people will use the connection or business tools?', 'कितने लोग कनेक्शन या बिज़नेस टूल इस्तेमाल करेंगे?'],
+  tools: ['What do you use now, and what services do you need?', 'अभी क्या इस्तेमाल करते हैं और कौन-सी सेवाएँ चाहिए?'],
+  budget: ['What is your monthly budget before tax?', 'टैक्स से पहले आपका मासिक बजट कितना है?'],
+  gst: ['Do you have a GSTIN? You can skip this to see plans available without one.', 'क्या आपके पास GSTIN है? बिना GSTIN वाले प्लान देखने के लिए छोड़ें।']
+};
 const eventNames = {
   CASE_STARTED: ['Case started', 'केस शुरू हुआ'], PARTNER_ATTACHED: ['Partner referral attached', 'पार्टनर रेफ़रल जोड़ा गया'],
   QUOTE_READY: ['Quote calculated', 'कोटेशन तैयार'], QUOTE_REPRICED: ['Quote repriced', 'कोटेशन अपडेट हुआ'],
@@ -92,11 +108,18 @@ const docNames = {
 };
 const reasons = {
   PROOF_MISSING: ['Required proof is missing', 'ज़रूरी प्रमाण नहीं मिला'],
+  OCR_BLUR: ['Image is blurry. Retake or upload a sharper photo.', 'इमेज धुंधली है। नई साफ़ फ़ोटो अपलोड करें।'],
   OCR_LOW_CONFIDENCE: ['Image text needs human confirmation', 'इमेज के टेक्स्ट की मानवीय जाँच चाहिए'],
   GST_FORMAT: ['GSTIN is unreadable or its checksum failed', 'GSTIN पढ़ा नहीं गया या जाँच असफल हुई'],
   GST_CANCELLED: ['Mock GST registry status is Cancelled', 'मॉक GST रजिस्ट्री में स्थिति रद्द है'],
   GST_CANCELLED_CANDIDATE: ['One OCR character differs from the cancelled registry record. Reviewer must confirm.', 'OCR का एक अक्षर रद्द रजिस्ट्री रिकॉर्ड से अलग है। समीक्षक पुष्टि करेगा।'],
   GST_SUSPENDED: ['Mock GST registry status is Suspended', 'मॉक GST रजिस्ट्री में स्थिति निलंबित है'],
+  GSTIN_NEAR_MATCH: ['GSTIN checksum failed and a nearby mock registry record exists. Recheck the certificate.', 'GSTIN जाँच असफल रही। प्रमाणपत्र दोबारा जाँचें।'],
+  GST_REGISTRY_MISMATCH: ['The certificate GSTIN differs from the matching business record.', 'प्रमाणपत्र का GSTIN कारोबार के रिकॉर्ड से अलग है।'],
+  GST_STATE_MISMATCH: ['GSTIN state code conflicts with the address state. Manual check required.', 'GSTIN का राज्य कोड पते से अलग है। मानवीय जाँच चाहिए।'],
+  GST_LEGAL_TRADE_MISMATCH: ['Legal and trade names do not match their respective registry fields.', 'कानूनी और व्यापार नाम रजिस्ट्री से मेल नहीं खाते।'],
+  GST_QUOTE_MISMATCH: ['Use the same active registration that qualified the quote.', 'कोटेशन के लिए इस्तेमाल किया गया सक्रिय पंजीकरण दें।'],
+  SIGNATORY_EXPIRED: ['Signatory proof has expired.', 'हस्ताक्षरकर्ता प्रमाण की अवधि समाप्त हो गई है।'],
   GST_DETAILS: ['GST name, address or applicant does not match', 'GST का नाम, पता या आवेदक मेल नहीं खाता'],
   REGISTRY_UNAVAILABLE: ['No usable mock registry result. Manual check required.', 'मॉक रजिस्ट्री परिणाम उपलब्ध नहीं। मानवीय जाँच चाहिए।'],
   GST_ACTIVE: ['Active and applicant details match', 'सक्रिय है और विवरण मेल खाते हैं'],
@@ -112,7 +135,8 @@ const reasons = {
   NOT_REQUIRED: ['Not required for this specimen', 'इस नमूने के लिए ज़रूरी नहीं']
 };
 const errors = {
-  INVALID_LOCATION: ['Enter a six-digit PIN and a valid site count.', 'छह अंकों का PIN और सही संख्या भरें।'],
+  INVALID_LOCATION: ['Enter a six-digit PIN or a recognised city and the site count.', 'छह अंकों का PIN या शहर और स्थानों की संख्या दर्ज करें।'],
+  INTAKE_NOT_UNDERSTOOD: ['Add a business type, city, number of sites, team size, needs or budget.', 'कारोबार का प्रकार, शहर, स्थान, टीम, ज़रूरत या बजट जोड़ें।'],
   INVALID_TOOLS: ['Choose at least one tool, or choose “None yet” by itself.', 'कम से कम एक टूल चुनें या सिर्फ़ “अभी कोई नहीं” चुनें।'],
   QUOTE_CHANGED: ['The quote changed. Refresh it before continuing.', 'कोटेशन बदल गया। आगे बढ़ने से पहले रीफ़्रेश करें।'],
   HOLD_EXPIRED: ['The slot hold expired. Select an installation window again.', 'समय की बुकिंग समाप्त हुई। फिर से समय चुनें।'],
@@ -158,7 +182,8 @@ function useResult(result) {
   }
   const known = stored(keys.cases) || [];
   const history = known.filter(entry => entry.id !== state.id);
-  history.unshift({ ...session, phase: state.phase, assist: state.assist, priority: state.priority?.score ?? 0 });
+  history.unshift({ ...session, phase: state.phase, assist: state.assist, priority: state.priority?.score ?? null,
+    scored: typeof state.priority?.score === 'number', updatedAt: Date.now() });
   save(keys.cases, history.slice(0, 12));
 }
 function changeCase(result) {
@@ -175,7 +200,7 @@ function statusName(key) {
 }
 function coverName(key) {
   return tr(({ fibre: ['Fibre available', 'फ़ाइबर उपलब्ध'], wireless: ['5G fixed wireless available', '5G वायरलेस उपलब्ध'],
-    none: ['Field survey needed', 'साइट सर्वे चाहिए'], unknown: ['PIN needs a coverage check', 'PIN की कवरेज जाँच चाहिए'] })[key] || ['', '']);
+    none: ['Field survey needed', 'साइट सर्वे चाहिए'], provisional: ['Fibre likely · confirm at install', 'फ़ाइबर संभावित · इंस्टॉलेशन पर पुष्टि'], unknown: ['PIN needs a coverage check', 'PIN की कवरेज जाँच चाहिए'] })[key] || ['', '']);
 }
 
 function head(label, subtitle, name, right = '', color = '') {
@@ -209,7 +234,7 @@ const starters = [
   ['clinic', 'clinic', ['Clinic with fibre', 'फ़ाइबर वाला क्लिनिक'], ['Single site · three people', 'एक स्थान · तीन लोग'], 'green'],
   ['cancelled', 'shield', ['K01 · cancelled GSTIN', 'K01 · रद्द GSTIN'], ['Verification review sample', 'सत्यापन समीक्षा का नमूना'], 'amber'],
   ['shop', 'shop', ['Shop · fibre unavailable', 'दुकान · फ़ाइबर उपलब्ध नहीं'], ['Fixed wireless coverage', 'वायरलेस कवरेज'], 'cool'],
-  ['multisite', 'users', ['Multi-site · field assist', 'मल्टी-साइट · फ़ील्ड सहायता'], ['Three sites · field sales', 'तीन स्थान · फ़ील्ड सेल्स'], '']
+  ['multisite', 'users', ['Multi-site · per-site quote', 'मल्टी-साइट · प्रति स्थान कोटेशन'], ['Three sites · one bundle', 'तीन स्थान · एक बंडल'], '']
 ];
 
 function scenarioButton([id, glyph, label, description, color]) {
@@ -246,123 +271,147 @@ function bubble(content, owner = false) {
 
 function advisor() {
   const chatTitle = state?.channel === 'web' ? T('Web advisor', 'वेब सलाहकार') : T('WhatsApp advisor', 'WhatsApp सलाहकार');
-  let messages = bubble(T('Hi! I can help you find a plan for your business. Five answers are enough to get started.', 'नमस्ते! मैं आपके कारोबार का सही प्लान ढूँढने में मदद करूँगा। शुरू करने के लिए पाँच जवाब काफ़ी हैं।'));
+  let messages = bubble(T('Tell me about your business in a message, or answer the questions below.',
+    'अपने कारोबार के बारे में लिखें या नीचे दिए सवालों के जवाब दें।'));
+  const submit = (label) => '<button type="submit" class="button button-primary">' + escape(label) + icon('arrow') + '</button>';
+  const chat = '<form data-form="intake" class="chat-compose"><label class="field">' +
+    T('Describe your business and needs', 'अपने कारोबार और ज़रूरतों के बारे में लिखें') +
+    '<textarea name="text" rows="2" maxlength="1200" required placeholder="' + escape(T(
+      'Two shops in Jaipur, six staff, need CCTV. Budget ₹6,000.',
+      'मेरी जयपुर में दो दुकानें हैं, 6 लोग हैं, CCTV चाहिए। बजट ₹6,000।')) + '"></textarea></label>' +
+    submit(T('Send message', 'संदेश भेजें')) + '</form>';
   let controls;
   if (!state) {
     controls = '<div class="actions">' + b(T('Start the chat', 'चैट शुरू करें'), 'start', { primary: true, icon: 'arrow' }) +
       b(T('Continue on web', 'वेब पर शुरू करें'), 'startWeb') + '</div><p class="chat-note">' +
-      T('WhatsApp-style sandbox. Choose Hindi or English any time.', 'WhatsApp जैसा डेमो। हिंदी या अंग्रेज़ी कभी भी चुनें।') + '</p>';
+      T('Use English or Hindi. Enter synthetic case data only.', 'अंग्रेज़ी या हिंदी का इस्तेमाल करें। सिर्फ़ नमूना डेटा दर्ज करें।') + '</p>';
   } else {
-    const p = state.profile;
-    const answers = [p.type && tr(typeNames[p.type]), p.pin && p.pin + ' · ' + p.sites + T(' site(s)', ' स्थान'),
-      p.staff && p.staff + T(' people', ' लोग'), p.tools?.map(tool => tr(toolNames[tool])).join(', '), p.budget && money(p.budget)];
-    for (let i = 0; i <= state.asked; i++) {
-      if (!questions[i]) continue;
-      messages += bubble(tr(questions[i]));
-      if (i < state.asked) messages += bubble(answers[i], true);
+    const p = { ...state.previousProfile, ...state.profile };
+    const current = state.nextQuestion;
+    const answers = {
+      type: state.profile.type && tr(typeNames[state.profile.type]),
+      location: state.profile.sites && [state.profile.city, state.profile.pin,
+        state.profile.sites + T(' site(s)', ' स्थान')].filter(Boolean).join(' · '),
+      staff: state.profile.staff && state.profile.staff + T(' people', ' लोग'),
+      tools: state.profile.tools && (state.profile.tools.map(tool => tr(toolNames[tool] || [tool, tool])).join(', ') || tr(toolNames.none)),
+      budget: state.profile.budget && money(state.profile.budget)
+    };
+    for (const [key, value] of Object.entries(answers)) {
+      if (value && key !== current) messages += bubble(value, true);
     }
-    const next = b(T('Send', 'भेजें'), 'fake', { primary: true, icon: 'arrow' }).replace('type="button" class=', 'type="submit" class=').replace(' data-act="fake"', '');
-    switch (state.asked) {
-      case 0:
+    if (current) messages += bubble(tr(questions[current]));
+    const next = submit(T('Continue', 'आगे बढ़ें'));
+    switch (current) {
+      case 'type':
         controls = '<div class="actions">' + Object.entries(typeNames).map(([key, value]) =>
           b(tr(value), 'type', { small: true, data: 'data-value="' + key + '"' })).join('') + '</div>';
         break;
-      case 1:
-        controls = '<form data-form="location" class="form-row"><label class="field">' + T('Installation PIN', 'इंस्टॉलेशन PIN') +
-          '<input name="pin" placeholder="302017" value="' + escape(p.pin || '') + '" inputmode="numeric" pattern="[1-9][0-9]{5}" maxlength="6" required></label><label class="field">' +
-          T('Number of sites', 'स्थान की संख्या') + '<input name="sites" type="number" min="1" max="100" required value="' + (p.sites || 1) + '"></label>' + next +
-          '</form><p class="chat-note">' + T('Try 302017 for fibre, 302029 for 5G, or 302028 for survey.', 'फ़ाइबर 302017, 5G 302029 और सर्वे 302028 आज़माएँ।') + '</p>';
+      case 'location':
+        controls = '<form data-form="location" class="form-row location-form"><label class="field">' + T('Installation PIN', 'इंस्टॉलेशन PIN') +
+          '<input name="pin" placeholder="302017" value="' + escape(p.pin || '') + '" inputmode="numeric" pattern="[1-9][0-9]{5}" maxlength="6"></label><label class="field">' +
+          T('City', 'शहर') + '<input name="city" placeholder="Jaipur" maxlength="50" value="' + escape(p.city || '') + '"></label><label class="field">' +
+          T('Number of sites', 'स्थान की संख्या') + '<input name="sites" type="number" min="1" max="100" required value="' + (p.sites || 1) + '"></label>' +
+          next + '</form>';
         break;
-      case 2:
+      case 'staff':
         controls = '<form data-form="staff" class="form-row single"><label class="field">' + T('Number of people', 'लोगों की संख्या') +
           '<input name="value" type="number" min="1" max="500" required placeholder="3" value="' + escape(p.staff || '') + '"></label>' + next + '</form>';
         break;
-      case 3:
-        controls = '<form data-form="tools"><div class="choices">' + Object.entries(toolNames).map(([key, value]) =>
+      case 'tools':
+        controls = '<form data-form="tools"><div class="choices">' + Object.entries(toolNames).filter(([key]) => key !== 'none').map(([key, value]) =>
           '<label class="choice"><input type="checkbox" name="tool" value="' + key + '"' + (p.tools?.includes(key) ? ' checked' : '') + '> ' + tr(value) + '</label>'
         ).join('') + '</div>' + next + '</form>';
         break;
-      default:
+      case 'budget':
         controls = '<form data-form="budget" class="form-row single"><label class="field">' + T('Monthly budget (₹)', 'मासिक बजट (₹)') +
           '<input name="value" type="number" min="300" max="500000" required placeholder="3000" value="' + escape(p.budget || '') + '"></label>' + next + '</form>';
+        break;
+      case 'gst':
+        controls = '<form data-form="gst" class="form-row single"><label class="field">' + T('GSTIN (optional)', 'GSTIN (वैकल्पिक)') +
+          '<input name="value" maxlength="15" autocomplete="off" autocapitalize="characters" placeholder="' +
+          escape(T('Leave blank to skip', 'छोड़ने के लिए खाली रखें')) + '"></label>' + next + '</form>';
+        break;
     }
+    if (state.draftQuote?.lines.length) messages += bubble(T('Estimate so far ', 'अभी का अनुमान ') +
+      state.draftQuote.lines.map(line => lineName(line)).join(', ') + ' · ' + money(state.draftQuote.monthly) +
+      T(' per month. Finish the questions to confirm.', ' प्रति माह। पुष्टि के लिए सवाल पूरे करें।'));
   }
   return '<section class="card chat-card" aria-labelledby="chat-title"><div class="chat-head"><div class="headline">' +
-    tile('chat', 'green') + '<div><strong id="chat-title">' + chatTitle + '</strong><p>' + T('Guided needs assessment', 'ज़रूरतों का आकलन') +
-    '</p></div></div>' + badge(state ? T('Question ', 'सवाल ') + (state.asked + 1) + '/5' : T('5 questions', '5 सवाल'), 'green') +
-    '</div><div class="chat-body" id="messages" aria-live="polite">' + messages + '</div><div class="chat-actions">' + controls + '</div></section>';
+    tile('chat', 'green') + '<div><strong id="chat-title">' + chatTitle + '</strong><p>' + T('Business needs assessment', 'ज़रूरतों का आकलन') +
+    '</p></div></div>' + badge(state?.intakeMode === 'genai' ? 'GenAI' : T('English / Hindi', 'हिंदी / अंग्रेज़ी'), 'green') +
+    '</div><div class="chat-body" id="messages" aria-live="polite">' + messages + '</div><div class="chat-actions">' + chat +
+    '<div class="guided-form">' + (controls || '') + '</div></div></section>';
 }
 
 function lineName(line) { return T(line.name, line.hi); }
 
+function quoteExclusions(q) {
+  const rows = q.exclusions || [];
+  const decisions = rows.filter(row => row.requested || row.code === 'ACCESS_STEP_DOWN' || row.code === 'OWNER_CHOICE');
+  const markup = rows => rows.map(row => '<li><strong>' + escape(lineName(row)) + '</strong> · ' +
+    escape(T(row.reason, row.hiReason)) + (row.alternative === 'P18' ? ' ' + T('Try Website + Domain.', 'वेबसाइट और डोमेन आज़माएँ।') : '') +
+    '</li>').join('');
+  return '<div class="exclusions"><h3>' + T('Why products were left out', 'सेवाएँ क्यों शामिल नहीं हुईं') + '</h3>' +
+    (decisions.length ? '<ul>' + markup(decisions) + '</ul>' : '') + '<details><summary>' +
+    T('All other catalogue options', 'बाकी कैटलॉग विकल्प') + '</summary><ul>' + markup(rows.filter(row => !decisions.includes(row))) + '</ul></details></div>';
+}
+
 function showQuote() {
   const q = state.quote;
-  const geo = q.area.city ? T(q.area.city, q.area.hi) + ' · ' + state.profile.pin : state.profile.pin;
-  const header = head(T('Your business quote', 'आपका बिज़नेस कोटेशन'),
-    geo + ' · ' + coverName(q.area.code), 'quote', badge('V' + state.quoteRevision + ' · ' + q.version, 'cool'));
-  if (q.route !== 'self') {
-    return '<section class="card panel">' + header + '<div class="notice amber"><strong>' +
-      (q.route === 'complex' ? T('A field specialist can design this bundle.', 'फ़ील्ड विशेषज्ञ यह बंडल बना सकता है।') :
-        T('We need to check your site before quoting.', 'कोटेशन से पहले साइट की जाँच चाहिए।')) + '</strong><p>' +
-      T('The team gets this case, the needs you entered and the partner reference. A confirmed quote follows the survey.', 'टीम को यही केस, आपकी ज़रूरतें और पार्टनर नंबर मिलते हैं। सर्वे के बाद पक्का कोटेशन मिलेगा।') +
-      '</p></div><div class="actions">' + b(q.route === 'complex' ? T('Send to field sales', 'फ़ील्ड सेल्स को भेजें') : T('Request a site survey', 'साइट सर्वे माँगें'),
-        'assist', { primary: true, icon: 'arrow' }) + b(T('Edit business needs', 'ज़रूरतें बदलें'), 'edit') + '</div></section>';
-  }
+  const geo = [q.area.city && T(q.area.city, q.area.hi), state.profile.pin,
+    q.area.tier && T('Tier ', 'श्रेणी ') + q.area.tier, coverName(q.area.code)].filter(Boolean).join(' · ');
+  const header = head(T('Your business quote', 'आपका बिज़नेस कोटेशन'), escape(geo), 'quote',
+    badge('V' + state.quoteRevision + ' · ' + q.version, 'cool'));
+  if (!q.lines.length) return '<section class="card panel">' + header + '<div class="notice amber">' +
+    T('A site survey is needed to confirm an access option.', 'इंटरनेट विकल्प की पुष्टि के लिए साइट सर्वे चाहिए।') + '</div>' + quoteExclusions(q) + '<div class="actions">' +
+    b(T('Request a site survey', 'साइट सर्वे माँगें'), 'assist', { primary: true, icon: 'arrow' }) +
+    b(T('Edit business needs', 'ज़रूरतें बदलें'), 'edit') + '</div></section>';
+
   const summary = '<div class="summary-band"><div><div class="money">' + money(q.monthly) + ' <small>' +
     T('/ month', '/ महीना') + '</small></div><p>' + T('Catalogue floor prices before tax', 'टैक्स से पहले कैटलॉग की न्यूनतम कीमत') +
     '</p></div><div><strong>' + money(q.setup) + '</strong><p>' + T('One-time setup', 'एक बार का सेटअप') + '</p></div></div>';
-  const explanationText = explanation?.text || (state.profile.type === 'office'
-    ? q.area.code === 'wireless'
-      ? T('Fixed wireless connects the office where fibre is unavailable. Business email and device protection are included for the team.',
-        'जहाँ फ़ाइबर उपलब्ध नहीं है, वहाँ 5G वायरलेस ऑफिस को जोड़ता है। टीम के लिए ईमेल और डिवाइस सुरक्षा शामिल हैं।')
-      : T('Give your team business email and device protection on a shared connection. Backup can keep the office online when fibre drops.',
-        'टीम को एक कनेक्शन पर बिज़नेस ईमेल और डिवाइस सुरक्षा दें। फ़ाइबर बंद हो तो बैकअप से काम चल सकता है।')
-    : T('A fixed line keeps payments and billing moving, with a separate SIM for shop calls. Add POS if you need billing and stock in one place.',
-      'स्थायी इंटरनेट से पेमेंट और बिलिंग चलती है। दुकान की कॉल के लिए अलग SIM है। बिलिंग और स्टॉक के लिए POS जोड़ सकते हैं।'));
+  const explanationText = explanation?.text || q.lines.map(line => T(line.detail, line.hiDetail)).join(' ');
   const fit = '<div class="notice"><div class="spread"><strong>' + T('Why this fits', 'यह प्लान क्यों सही है') + '</strong>' +
-    badge(explanation?.mode === 'genai' ? 'GenAI · hosted' : explanation?.mode === 'device' ? 'GenAI · on device' : T('Catalogue rules', 'कैटलॉग नियम'), 'cool') +
-    '</div><p>' + escape(explanationText) + '</p>' + (config.hostedAi || globalThis.LanguageModel ? '<div class="actions">' +
-    b(T('Generate an AI explanation', 'AI से व्याख्या बनाएँ'), 'explain', { small: true, icon: 'spark' }) + '</div>' : '') + '</div>';
-  const area = q.area.code === 'wireless' ? '<div class="notice green">' +
-    T('Fibre is unavailable at this sample PIN. The quote uses 5G fixed wireless. The fibre-only backup add-on is excluded.',
-      'इस नमूना PIN पर फ़ाइबर उपलब्ध नहीं है। कोटेशन 5G वायरलेस का है। फ़ाइबर वाला बैकअप इसमें शामिल नहीं है।') + '</div>' : '';
+    badge(explanation?.mode === 'genai' ? 'GenAI · hosted' : explanation?.mode === 'device' ? 'GenAI · on device' :
+      T('Catalogue rules', 'कैटलॉग नियम'), 'cool') + '</div><p>' + escape(explanationText) + '</p>' +
+    (config.hostedAi || globalThis.LanguageModel ? '<div class="actions">' +
+      b(T('Generate an AI explanation', 'AI से व्याख्या बनाएँ'), 'explain', { small: true, icon: 'spark' }) + '</div>' : '') + '</div>';
+  const registration = state.profile.gstStatus;
+  const tax = registration && registration !== 'none' ? '<div class="notice ' + (state.profile.gstVerified ? 'green' : 'amber') + '">' +
+    (state.profile.gstVerified ? T('Active GSTIN checked in the mock registry.', 'मॉक रजिस्ट्री में सक्रिय GSTIN मिला।') :
+      T('GSTIN is not active in the mock registry. GSTIN-gated items are excluded.', 'मॉक रजिस्ट्री में सक्रिय GSTIN नहीं मिला। GSTIN वाली सेवाएँ शामिल नहीं हैं।')) +
+    ' ' + escape(state.profile.gstReference || '') + '</div>' : '';
   const budget = q.budgetGap ? '<div class="notice amber">' + T('This quote is ', 'यह कोटेशन ') + money(q.budgetGap) +
     T(' above your monthly budget.', ' आपके मासिक बजट से ज़्यादा है।') + '</div>' : '';
   const lines = '<div class="lines">' + q.lines.map(line => '<div class="line-row"><div><strong>' + escape(lineName(line)) +
     (line.qty > 1 ? ' × ' + line.qty : '') + '</strong><small>' + escape(T(line.detail, line.hiDetail)) +
     '</small></div><div class="line-value"><strong>' + money(line.monthly) + '</strong><small>' +
     line.term + T(' mo minimum', ' महीने न्यूनतम') + (line.oneTime ? ' · ' + money(line.oneTime) + T(' setup', ' सेटअप') : '') + '</small></div></div>').join('') + '</div>';
-  const toggle = (key, item) => {
-    const selected = q.options[key];
-    const impact = selected
-      ? T('Turn off to save ', 'बंद करके बचाएँ ') + money(item.price) + T(' / month', ' / महीना') +
-        (item.setup ? T(' and ', ' और ') + money(item.setup) + T(' on setup', ' सेटअप पर') : '')
-      : '+' + money(item.price) + T(' / month', ' / महीना') + (item.setup ? ' · ' + money(item.setup) + T(' setup', ' सेटअप') : '');
-    const tradeoff = selected && key === 'backup'
-      ? T('Automatic failover will be removed.', 'अपने आप बैकअप चालू होने की सुविधा हटेगी।')
-      : T(item.detail, item.hiDetail);
+  const extras = (q.toggles || []).map(item => {
+    const impact = item.selected ? T('Turn off to save ', 'बंद करके बचाएँ ') : '+';
     const label = lineName(item);
-    return '<label class="addon"><span>' + escape(label) + '<small>' + escape(impact + ' · ' + tradeoff) +
-      '</small></span><input type="checkbox" role="switch" data-toggle="' + key + '" ' + (selected ? 'checked ' : '') +
+    return '<label class="addon"><span>' + escape(label) + '<small>' +
+      escape(impact + money(item.monthly) + T(' / month', ' / महीना') + (item.oneTime ? ' · ' + money(item.oneTime) + T(' setup', ' सेटअप') : '')) +
+      '</small></span><input type="checkbox" role="switch" data-toggle="' + item.id + '" ' + (item.selected ? 'checked ' : '') +
       'aria-label="' + escape(label) + '"></label>';
-  };
-  const extras = (q.canBackup ? toggle('backup', config.addOns.backup) : '') +
-    (q.canPos ? toggle('pos', config.addOns.pos) : '');
-  return '<section class="card panel">' + header + summary + area + budget + lines + extras + fit + '<div class="actions">' +
-    b(T('Accept quote & verify', 'कोटेशन स्वीकार कर सत्यापन करें'), 'accept', { primary: true, icon: 'arrow' }) +
+  }).join('');
+  return '<section class="card panel">' + header + summary + tax + budget + lines + extras + quoteExclusions(q) + fit + '<div class="actions">' +
+    (q.route === 'self' ? b(T('Accept quote & verify', 'कोटेशन स्वीकार कर सत्यापन करें'), 'accept', { primary: true, icon: 'arrow' }) :
+      b(T('Send quote to field sales', 'कोटेशन फ़ील्ड सेल्स को भेजें'), 'assist', { primary: true, icon: 'arrow' })) +
     b(T('Edit business needs', 'ज़रूरतें बदलें'), 'edit') + '</div></section>';
 }
 
 function checkList(result) {
   return '<ul class="check-list">' + result.checks.map(row => '<li>' +
     icon(row.state === 'pass' ? 'check' : 'warning', row.state === 'pass' ? '' : 'warning') + '<span><strong>' +
-    tr(docNames[row.name]) + ' · </strong>' + tr(reasons[row.reason] || [row.reason, row.reason]) + '</span>' +
+    tr(docNames[row.name]) + ' · </strong>' + tr(reasons[row.reason] || [row.reason, row.reason]) +
+    (row.tamper ? ' ' + T('Possible tamper signal.', 'संभावित छेड़छाड़ का संकेत।') : '') + '</span>' +
     (row.reference ? '<code>' + escape(row.reference) + '</code>' : '<span></span>') + '</li>').join('') + '</ul>';
 }
 
 function showKyc() {
   const header = head(T('Smart KYC', 'स्मार्ट KYC'), T('Consent, document reading and mock registry checks.',
-    'सहमति, दस्तावेज़ पढ़ना और मॉक रजिस्ट्री जाँच।'), 'shield', badge(state.fixture, 'cool'), 'green');
+    'सहमति, दस्तावेज़ पढ़ना और मॉक रजिस्ट्री जाँच।'), 'shield', state.fixture ? badge(state.fixture, 'cool') : '', 'green');
   if (!state.consent) {
     return '<section class="card panel">' + header + '<div class="notice"><strong>' +
       T('Before you add proof', 'प्रमाण जोड़ने से पहले') + '</strong><p>' +
@@ -392,7 +441,7 @@ function showKyc() {
       (uploads[kind] ? escape(uploads[kind].name) : T('PNG, JPEG or WebP · under 8 MB', 'PNG, JPEG या WebP · 8 MB से कम')) + '</small></div>';
   }).join('') + '</div>';
   const inputs = held ? '' : '<div class="actions">' +
-    b(state.fixture.endsWith('R') ? T('Scan replacement set', 'नया प्रमाण स्कैन करें') : T('Scan sample documents', 'नमूना दस्तावेज़ स्कैन करें'),
+    b(state.fixture?.endsWith('R') ? T('Scan replacement set', 'नया प्रमाण स्कैन करें') : T('Scan sample documents', 'नमूना दस्तावेज़ स्कैन करें'),
       'scanSample', { primary: true, icon: 'shield' }) +
     b(T('Scan my selected files', 'चुनी हुई फ़ाइलें स्कैन करें'), 'scanUploads', { disabled: !Object.keys(uploads).length }) +
     (state.fixture === 'K05' && state.kyc?.status === 'correction' ?
@@ -487,11 +536,20 @@ function showOps() {
     T('Open a demo case from the owner journey first.', 'पहले मालिक के व्यू से डेमो केस खोलें।'), 'users') +
     b(T('Open owner journey', 'मालिक का व्यू खोलें'), 'owner', { primary: true }) + '</section>';
   const a = state.assist;
-  const recent = (stored(keys.cases) || []).filter(entry => entry.assist && entry.id !== state.id)
+  const known = stored(keys.cases) || [];
+  const recent = known.filter(entry => entry.assist && entry.id !== state.id)
     .sort((left, right) => right.priority - left.priority).slice(0, 5);
   const waiting = recent.length ? '<details class="queue-other"><summary>' + T('Other assisted cases', 'अन्य सहायता केस') +
     ' (' + recent.length + ')</summary><div class="actions">' + recent.map(entry => b(entry.id + ' · ' + entry.priority,
       'loadCase', { small: true, data: 'data-id="' + entry.id + '"' })).join('') + '</div></details>' : '';
+  const ranked = known.filter(entry => entry.scored && ['quote', 'assisted', 'kyc', 'checkout'].includes(entry.phase) &&
+    Date.now() - entry.updatedAt < 86400000).sort((left, right) => right.priority - left.priority).slice(0, 5);
+  const callNext = '<section class="card panel">' + head(T('Who to call next', 'अगली कॉल किसे करें'),
+    T('Open cases on this device ranked by activation propensity.', 'इस डिवाइस के खुले केस एक्टिवेशन संभावना के क्रम में।'), 'users') +
+    (ranked.length ? '<ol class="exclusions">' + ranked.map(entry => '<li><strong>' + escape(entry.id) +
+      '</strong> · ' + escape(entry.priority) + '% ' + (entry.id === state.id ? T('· Current case', '· वर्तमान केस') :
+        b(T('Open case', 'केस खोलें'), 'loadCase', { small: true, data: 'data-id="' + entry.id + '"' })) + '</li>').join('') + '</ol>' :
+      '<p class="section-sub">' + T('Finish a quote to score a case.', 'केस का स्कोर देखने के लिए कोटेशन पूरा करें।') + '</p>') + '</section>';
   const tag = a?.type === 'kyc' ? T('Verification desk', 'सत्यापन डेस्क') :
     a ? T('Field sales desk', 'फ़ील्ड सेल्स डेस्क') : T('Self-serve', 'सेल्फ़-सर्व');
   const opsAction = a ? '<div class="notice amber"><strong>' + tag + '</strong><p>' +
@@ -512,8 +570,8 @@ function showOps() {
     '</div></section>' : '';
   const summary = '<div class="grid-three"><div class="card kpi"><small>' + T('Case', 'केस') + '</small><div class="passport-code">' + state.id +
     '</div><small>' + tr(stageNames[state.phase]) + '</small></div><div class="card kpi"><small>' +
-    T('Follow-up priority', 'फ़ॉलो-अप प्राथमिकता') + '</small><strong>' + state.priority.score + '<small>/100</small></strong><small>' +
-    T('Rule-based demo score', 'नियम आधारित डेमो स्कोर') + '</small></div><div class="card kpi"><small>' +
+    T('Activation propensity', 'एक्टिवेशन संभावना') + '</small><strong>' + (state.priority.score === null ? '—' : state.priority.score + '%') + '</strong><small>' +
+    T('Model trained on synthetic case leads', 'सिंथेटिक लीड पर प्रशिक्षित मॉडल') + '</small></div><div class="card kpi"><small>' +
     T('Referral attribution', 'रेफ़रल') + '</small><strong>' + escape(state.partner || '—') + '</strong><small>' +
     (order?.referralCredited ? T('Credited once', 'एक बार क्रेडिट') : T('Credit after activation', 'एक्टिवेशन के बाद क्रेडिट')) + '</small></div></div>';
   return intro + '<div class="stack">' + summary + '<div class="grid-two"><div class="stack"><section class="card panel">' +
@@ -522,7 +580,7 @@ function showOps() {
     (state.priority.reasons.length ? '<p class="section-sub">' + state.priority.reasons.map(escape).join(' · ') + '</p>' : '') +
     '<div class="actions">' + b(T('Back to owner case', 'मालिक के केस पर लौटें'), 'owner', { small: true }) +
     (state.partner ? b(T('Copy partner entry link', 'पार्टनर लिंक कॉपी करें'), 'partnerLink', { small: true, icon: 'link' }) : '') +
-    '</div></section>' + fulfil +
+    '</div></section>' + callNext + fulfil +
     '</div><section class="card panel">' + head(T('Audit trail', 'ऑडिट ट्रेल'),
       T('Masked events across the same reference', 'उसी नंबर पर सुरक्षित घटनाएँ'), 'quote') +
     '<ol class="timeline">' + [...state.events].reverse().map(row => '<li class="done"><span class="status-point">' + icon('check') +
@@ -604,11 +662,11 @@ async function scanned(specimen, selected, update) {
   const documents = {};
   let handled = 0;
   for (const kind of kinds) {
-    const blob = selected ? selected[kind] : await sampleImage(specimen, kind);
+    const blob = selected ? selected[kind] : await sampleImage(specimen, kind, session);
     if (!blob) continue;
     update?.(++handled, kind);
-    const result = await scanImage(blob, kind, { deskew: !selected && specimen.id === 'K02' && kind === 'gst' });
-    if (result.synthetic) documents[kind] = result;
+    const { synthetic, fields, quality } = await scanImage(blob, kind);
+    if (synthetic || quality === 'blurred') documents[kind] = { synthetic, fields, quality };
   }
   return documents;
 }
@@ -642,7 +700,7 @@ async function explainQuote() {
           'Write two short sentences in ' + T('English', 'Hindi') +
           ' about how the following services fit a small business. Use only these services. Do not give prices, numbers, promises, or links. ' +
           JSON.stringify(safeFacts), { signal: AbortSignal.timeout(8000) })).trim();
-        if (response && response.length < 560 && !/[\d₹$<>]|https?:/i.test(response)) {
+        if (response && response.length < 560 && !/[\p{N}\p{Sc}<>]|https?:/iu.test(response)) {
           explanation = { text: response, mode: 'device' };
           return;
         }
@@ -794,11 +852,14 @@ document.addEventListener('submit', event => {
     } else if (kind === 'fixture') {
       const fixture = data.get('fixture');
       if (config.fixtures.some(row => row.id === fixture)) await start('whatsapp', 'clinic', fixture);
+    } else if (kind === 'intake') {
+      if (!state) await start('web');
+      await perform('intake', { text: data.get('text').trim() });
     } else if (kind === 'consent') {
       await perform('consent', { accepted: data.get('agree') === 'on', version: config.policyVersion });
     } else {
-      const value = kind === 'location' ? { pin: data.get('pin').trim(), sites: Number(data.get('sites')) } :
-        kind === 'tools' ? data.getAll('tool') : Number(data.get('value'));
+      const value = kind === 'location' ? { pin: data.get('pin').trim(), city: data.get('city').trim(), sites: Number(data.get('sites')) } :
+        kind === 'tools' ? data.getAll('tool') : kind === 'gst' ? data.get('value').trim() : Number(data.get('value'));
       await perform('answer', { key: kind, value });
     }
   });
@@ -814,6 +875,8 @@ window.addEventListener('storage', event => {
 async function initialize() {
   try {
     config = await api('/config', null, null);
+    const incomingResume = /^#resume=(UD-[A-F0-9]{10})\.([A-Z2-9]{8})$/.exec(location.hash);
+    if (incomingResume) history.replaceState(null, '', location.pathname + location.search);
     tabFromUrl = /^#track=(UD-[A-F0-9]{10})$/.exec(location.hash)?.[1];
     if (session && (!tabFromUrl || session.id === tabFromUrl)) {
       try {
@@ -825,7 +888,8 @@ async function initialize() {
       }
     }
     render();
-    if (tabFromUrl && state?.id !== tabFromUrl) openResume(tabFromUrl);
+    if (incomingResume) openResume(incomingResume[1], incomingResume[2]);
+    else if (tabFromUrl && state?.id !== tabFromUrl) openResume(tabFromUrl);
     else if (tabFromUrl && state?.order) $('#work-area')?.scrollIntoView({ block: 'start', behavior: 'instant' });
   } catch {
     main.setAttribute('aria-busy', 'false');

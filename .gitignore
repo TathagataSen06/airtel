@@ -5,5 +5,7 @@ dist/
 !.env.example
 node_modules/
 src/official.local.mjs
+src/propensity.local.json
+__pycache__/
 public/specimens/
 public/vendor/

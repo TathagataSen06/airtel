@@ -178,3 +178,11 @@ dialog form{margin-top:12px}
 @media(max-width:540px){.container,.top-inner{width:calc(100% - 24px)}.rail{margin:14px 0 12px;padding:4px;gap:1px}.rail li{gap:4px;padding:5px 4px;min-height:42px}.rail-icon{width:22px;height:22px;border-radius:6px}.rail-icon .icon{width:13px;height:13px}.rail-text strong{font-size:10px}.top-nav button{padding:8px 10px}.chat-body{min-height:158px;padding:12px}.chat-head,.chat-actions{padding:12px}.card-head{gap:8px}.grid-two,.grid-three{grid-template-columns:1fr}.form-row{grid-template-columns:repeat(2,minmax(0,1fr))}.form-row button{grid-column:1/-1;justify-self:start}.form-row.single{grid-template-columns:minmax(0,1fr) auto}.form-row.single button{grid-column:auto}.demo-indicator{margin-right:1px}.footer{flex-direction:column}.section-top{display:block}.section-top>.badge{margin-top:9px}.evidence-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 .queue-other{margin-top:12px}
+
+.chat-compose{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
+.chat-compose textarea{font:inherit;resize:vertical;min-height:64px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:white}
+.guided-form{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.location-form{grid-template-columns:repeat(3,minmax(0,1fr)) auto}
+.exclusions{margin:14px 0}.exclusions h3{margin:0 0 6px;font-size:15px}
+.exclusions ul{margin:6px 0 10px;padding-left:18px;color:var(--soft);font-size:13px}
+@media(max-width:650px){.chat-compose,.location-form{grid-template-columns:1fr}}

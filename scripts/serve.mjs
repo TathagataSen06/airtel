@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -10,7 +10,10 @@ const root = new URL('../', import.meta.url);
 const home = new URL('.udyam/', root);
 await mkdir(home, { recursive: true });
 const local = new DatabaseSync(process.env.UDYAM_DB || fileURLToPath(new URL('demo.sqlite', home)));
-local.exec(await readFile(new URL('drizzle/0000_cases.sql', root), 'utf8'));
+const migrations = new URL('drizzle/', root);
+for (const file of (await readdir(migrations)).filter(name => /^\d.*\.sql$/.test(name)).sort()) {
+  local.exec(await readFile(new URL(file, migrations), 'utf8'));
+}
 const db = { prepare: sql => ({ bind: (...args) => ({
   first: async () => local.prepare(sql).get(...args),
   run: async () => ({ meta: local.prepare(sql).run(...args) })
@@ -48,7 +51,7 @@ function listen() {
       }
       const request = new Request(requestUrl, { method: incoming.method, headers: incoming.headers,
         ...(hasBody ? { body: Buffer.concat(chunks) } : {}) });
-      const response = await route(request, { DB: db, OPENAI_API_KEY: process.env.OPENAI_API_KEY, OPENAI_MODEL: process.env.OPENAI_MODEL }, asset);
+      const response = await route(request, { ...process.env, DB: db }, asset);
       outgoing.writeHead(response.status, Object.fromEntries(response.headers));
       outgoing.end(Buffer.from(await response.arrayBuffer()));
     } catch {

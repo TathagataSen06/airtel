@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 from PIL import Image
+from propensity import train_propensity
 
 source = Path(sys.argv[1])
 output = Path(__file__).resolve().parents[1]
@@ -42,10 +43,9 @@ for i, (gstin, description) in enumerate(applicants, start=1):
         path = source / 'kyc_documents' / f'{key}_{label}.png'
         if not path.exists():
             continue
-        image = Image.open(path).convert('RGB')
-        image.thumbnail((1100, 1650))
         filename = f'{key}-{kind}.webp'
-        image.save(images / filename, quality=48, method=4)
+        with Image.open(path) as image:
+            image.convert('RGB').save(images / filename, lossless=True, method=3)
         files[kind] = f'/specimens/{filename}'
     fixtures[key] = {
         'name': applicant['business_name'], 'description': description,
@@ -82,9 +82,10 @@ def compact(data):
 
 payload = {
     'productSource': {row['product_id']: row for row in products},
-    'officialGst': {row['gstin']: [row['legal_name'], row['trade_name'], row['principal_place_of_business'], row['state'], row['status']] for row in tax},
+    'officialGst': {row['gstin']: [row['legal_name'], row['trade_name'], row['principal_place_of_business'], row['state'], row['status'], by_gst.get(row['gstin'], {}).get('contact_name', '')] for row in tax},
     'officialUdyam': {row['udyam_number']: [row['enterprise_name'], row['state']] for row in msme},
     'officialFixtures': fixtures,
+    'cityTiers': {row['city']: int(row['city_tier']) for row in leads},
     'baselines': baselines
 }
 (output / 'src' / 'official.local.mjs').write_text(
@@ -92,4 +93,7 @@ payload = {
     + '\n'.join(f'export const {key} = {compact(value)};' for key, value in payload.items()) + '\n',
     encoding='utf-8'
 )
+model = train_propensity(leads, tax)
+(output / 'src' / 'propensity.local.json').write_text(json.dumps(model, indent=2) + '\n', encoding='utf-8')
 print(json.dumps(baselines, indent=2))
+print(json.dumps(model, indent=2))

@@ -1,0 +1,43 @@
+{
+  "version": "case-logit-v1",
+  "features": [
+    "log_staff",
+    "log_sites",
+    "tier_one",
+    "active_gst",
+    "weak_internet",
+    "addon_interests"
+  ],
+  "intercept": -2.66869065,
+  "means": [
+    2.29562413,
+    0.92444583,
+    0.518,
+    0.65475,
+    0.383,
+    1.57725
+  ],
+  "scales": [
+    1.18450049,
+    0.51872936,
+    0.49967589,
+    0.47544972,
+    0.4861183,
+    0.82766686
+  ],
+  "weights": [
+    0.19713163,
+    -0.04564905,
+    0.16384089,
+    0.41242512,
+    -0.19484502,
+    -0.02985453
+  ],
+  "trainingRows": 4000,
+  "trainingActivated": 297,
+  "holdoutRows": 1000,
+  "holdoutActivated": 71,
+  "holdoutAuc": 0.6484,
+  "holdoutBrier": 0.0649,
+  "holdoutBaselineBrier": 0.066
+}

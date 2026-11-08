@@ -23,17 +23,21 @@ async function pack(directory, root = directory) {
   return output;
 }
 
-let dataset;
-try {
-  dataset = await readFile(fromRoot('src/official.local.mjs'), 'utf8');
-} catch (error) {
-  if (error.code !== 'ENOENT') throw error;
-  dataset = await readFile(fromRoot('src/official.mjs'), 'utf8');
+async function loadLocal(preferred, fallback) {
+  try { return await readFile(fromRoot(preferred), 'utf8'); }
+  catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return readFile(fromRoot(fallback), 'utf8');
+  }
 }
-const modules = [dataset, ...await Promise.all(['domain', 'assets', 'server'].map(file =>
-  readFile(fromRoot('src/' + file + '.mjs'), 'utf8')
-))];
-const source = modules.map(module => module.replace(/^import\s+\{[^}]+\}\s+from\s+['"][^'"]+['"];\s*/gm, '')).join('\n');
+const modules = await Promise.all([
+  loadLocal('src/official.local.mjs', 'src/official.mjs'),
+  loadLocal('src/propensity.local.json', 'src/propensity-model.json').then(json => `const propensityModel = ${JSON.stringify(JSON.parse(json))};`),
+  readFile(fromRoot('public/gst-format.mjs'), 'utf8'),
+  ...['geography', 'catalogue', 'domain', 'intake', 'models', 'whatsapp', 'assets', 'server'].map(file =>
+    readFile(fromRoot('src/' + file + '.mjs'), 'utf8'))
+]);
+const source = modules.map(module => module.replace(/^(?:import|export)\s+\{[^}]+\}\s+from\s+['"][^'"]+['"];\s*/gm, '')).join('\n');
 const assets = await pack('public');
 const launch = `
 const embeddedAssets = ${JSON.stringify(assets)};

@@ -10,7 +10,7 @@ export function serveAsset(path, method, content, type, encoding) {
   const vendor = path.startsWith('/vendor/');
   const headers = {
     'Content-Type': type, 'X-Content-Type-Options': 'nosniff',
-    'Cache-Control': path === '/' ? 'no-cache' : vendor || path.startsWith('/specimens/') ? 'public,max-age=86400' : 'no-cache',
+    'Cache-Control': path.startsWith('/specimens/') ? 'private, no-store' : vendor ? 'public,max-age=86400' : 'no-cache',
     'Content-Security-Policy': "default-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' blob: data:; style-src 'self'; worker-src 'self'; connect-src 'self'",
     'Referrer-Policy': 'no-referrer'
   };
